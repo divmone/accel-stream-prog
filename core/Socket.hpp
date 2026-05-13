@@ -9,18 +9,20 @@
 
 class Socket {
 public:
-    Socket(int domain = AF_INET, int type = SOCK_STREAM, int protocol = 0) {
+    Socket(int domain, int type, int protocol) {
         sockfd = socket(domain, type, protocol);
         if (sockfd < 0) {
             throw std::runtime_error("Failed to create socket");
         }
     }
     ~Socket() {
-        if (sockfd > 0) {
+        if (sockfd >= 0) {
             close(sockfd);
             sockfd = -1;
         }
     }
+
+    explicit Socket(int fd): sockfd(fd) { }
 
     Socket(const Socket& ) = delete;
     Socket& operator=(const Socket& ) = delete;
