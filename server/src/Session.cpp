@@ -4,6 +4,9 @@
 
 #include "Session.hpp"
 #include <spdlog/spdlog.h>
+#include <boost/asio/experimental/awaitable_operators.hpp>
+
+using namespace boost::asio::experimental::awaitable_operators;
 
 Session::Session(std::shared_ptr<TcpConnection> a,
                  std::shared_ptr<TcpConnection> b) : connA(a), connB(b) {
@@ -11,16 +14,8 @@ Session::Session(std::shared_ptr<TcpConnection> a,
 
 boost::asio::awaitable<void> Session::run() {
     spdlog::info("[Session] started, forwarding A<->B");
-    auto executor = co_await boost::asio::this_coro::executor;
-    auto self = shared_from_this();
-
-    boost::asio::co_spawn(executor,
-                          [self]() { return self->forwardAtoB(); },
-                          boost::asio::detached);
-
-    boost::asio::co_spawn(executor,
-                          [self]() { return self->forwardBtoA(); },
-                          boost::asio::detached);
+    co_await (forwardAtoB() || forwardBtoA());
+    spdlog::info("[Session] ended");
 }
 
 bool Session::filterPackets(const AccelPacket &packetA,
@@ -54,6 +49,9 @@ boost::asio::awaitable<void> Session::forwardAtoB() {
 
             lastPacket = currentPacket;
         }
+    } catch (const boost::system::system_error &e) {
+        if (e.code() == boost::asio::error::operation_aborted) co_return;
+        spdlog::warn("[Session] A->B closed: {}", e.what());
     } catch (const std::exception &e) {
         spdlog::error("[Session] A->B: {}", e.what());
     }
@@ -66,6 +64,9 @@ boost::asio::awaitable<void> Session::forwardBtoA() {
             co_await connA->asyncWriteLine(line + "\n");
             spdlog::info("[Session] B->A: {}", line);
         }
+    } catch (const boost::system::system_error &e) {
+        if (e.code() == boost::asio::error::operation_aborted) co_return;
+        spdlog::warn("[Session] B->A closed: {}", e.what());
     } catch (const std::exception &e) {
         spdlog::error("[Session] B->A: {}", e.what());
     }

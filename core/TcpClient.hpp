@@ -16,7 +16,7 @@ using tcp = boost::asio::ip::tcp;
 class TcpClient {
 public:
     static boost::asio::awaitable<std::shared_ptr<TcpConnection> >
-    connect(boost::asio::io_context &io, const std::string &ip, uint16_t port) {
+    connect(boost::asio::io_context &io, const std::string_view &ip, uint16_t port) {
         spdlog::info("[TcpClient] connecting to {}:{}", ip, port);
         tcp::resolver resolver(io);
         tcp::socket socket(io);

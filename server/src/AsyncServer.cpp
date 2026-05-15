@@ -31,6 +31,11 @@ boost::asio::awaitable<void> AsyncServer::run() {
         auto conn_a = std::make_shared<TcpConnection>(std::move(sockA));
         auto conn_b = std::make_shared<TcpConnection>(std::move(sockB));
 
-        co_await std::make_shared<Session>(conn_a, conn_b)->run();
+        auto session = std::make_shared<Session>(conn_a, conn_b);
+        try {
+            co_await session->run();
+        } catch (const std::exception &e) {
+            spdlog::error("[Server] session ended with error: {}", e.what());
+        }
     }
 }

@@ -7,6 +7,7 @@
 #include <boost/asio.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
+#include <TcpClient.hpp>
 
 template<typename T>
 int run(std::string_view name, T t) {
@@ -47,3 +48,37 @@ boost::asio::awaitable<void> runCoro(std::string_view text, T t) {
         spdlog::error("[{}] error: {}", text, e.what());
     }
 }
+
+template <typename Handler>
+boost::asio::awaitable<void> runTcpClient(
+    std::string_view text,
+    boost::asio::io_context& io,
+    std::string_view host,
+    int port,
+    Handler h)
+{
+    spdlog::info("{} starting", text);
+
+    auto ex = co_await boost::asio::this_coro::executor;
+    constexpr auto RECONNECT_DELAY = std::chrono::seconds(1);
+
+    while (true) {
+        try {
+            auto conn = co_await TcpClient::connect(io, host, port);
+            spdlog::info("[{}] processing loop started", text);
+            while (true) {
+               co_await h(conn);
+            }
+        } catch (const boost::system::system_error &e) {
+            spdlog::warn("[{}] disconnected: {}", text, e.what());
+        } catch (const std::exception &e) {
+            spdlog::error("[{}] error: {}", text, e.what());
+        }
+
+        spdlog::info("[{}] reconnecting in {}ms", text,
+                     std::chrono::duration_cast<std::chrono::milliseconds>(RECONNECT_DELAY).count());
+        boost::asio::steady_timer timer(ex, RECONNECT_DELAY);
+        co_await timer.async_wait(boost::asio::use_awaitable);
+    }
+}
+
